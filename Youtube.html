@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Player</title>
+    <style>
+      /* --- UPDATED STYLING --- */
+      html {
+        background: linear-gradient(120deg, #000000, #434343);
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        text-align: center; /* Replaces <center> tag */
+        margin: 0;
+        padding: 20px;
+        color: white;
+      }
+
+      .section {
+        background-color: rgba(30, 30, 30, 0.85);
+        color: white;
+        border-radius: 8px;
+        margin: 10px auto;
+        padding: 20px;
+        max-width: 800px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        text-shadow: 1px 1px 2px black;
+      }
+
+      /* Responsive Video Player */
+      #video-wrapper {
+        position: relative;
+        padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+        height: 0;
+        background: #000;
+        border-radius: 5px;
+        overflow: hidden;
+        border: 4px solid #000;
+        margin-bottom: 15px;
+      }
+
+      #video {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+
+      /* Controls */
+      #videourl {
+        width: 70%;
+        padding: 12px;
+        font-size: 16px;
+        border-radius: 5px;
+        border: 2px solid #444;
+        background: #222;
+        color: #fff;
+        margin-right: 5px;
+      }
+
+      #ok {
+        padding: 12px 25px;
+        font-size: 16px;
+        border-radius: 5px;
+        border: none;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        transition: 0.2s;
+      }
+
+      #ok:hover { background-color: #0056b3; }
+      #ok:active { transform: scale(0.98); }
+
+      /* Status & Help Text */
+      #status {
+        margin-top: 10px;
+        font-size: 0.9rem;
+        color: #aaa;
+        font-style: italic;
+        min-height: 20px;
+      }
+      
+      .keywords {
+        margin-top: 15px;
+        font-size: 0.85rem;
+        color: #888;
+      }
+      
+      .tag {
+        display: inline-block;
+        background: #333;
+        padding: 2px 8px;
+        border-radius: 4px;
+        margin: 2px;
+        cursor: pointer;
+        border: 1px solid #555;
+      }
+      .tag:hover { background: #444; color: white; }
+
+      h1 { margin-top: 0; letter-spacing: 1px; }
+      
+      footer { margin-top: 30px; font-size: 0.8rem; opacity: 0.6; }
+    </style>
+  </head>
+  <body>
+
+    <header class="section">
+      <h1>FOCUS PLAYER</h1> 
+    </header>
+
+    <main class="section">
+      
+      <!-- Video Container -->
+      <div id="video-wrapper">
+        <iframe id="video" src="" title="YouTube video player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+      </div>
+
+      <!-- Status Log -->
+      <div id="status">Ready. Type a keyword or paste a URL.</div>
+
+      <!-- Controls -->
+      <div>
+        <input id="videourl" type="text" placeholder="Paste YouTube URL or Type Keyword (e.g. 'Lofi')">
+        <button id="ok" onclick="okclick()">PLAY</button>
+      </div>
+    </main>
+
+    <footer>
+      <p>© Copyright 'ABDALLAH HAMDY' 2024</p>
+    </footer>
+
+    <script>
+      // --- 1. THE DATABASE (Offline Library) ---
+      // Add more keywords here if needed.
+      // Format: "keyword": "Playlist ID"
+      const library = {
+        "lofi": "PL85cJcXrA9nqkK6i6pJq2v5v7w8x9y0z", // Example ID
+        "nature": "PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf", // Nature Sounds
+        "piano": "PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf", // Piano
+        "white noise": "PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf", // Placeholder
+        "rain": "PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf"    // Placeholder
+      };
+
+      // Helper to fill input box
+      function quickType(word) {
+        document.getElementById("videourl").value = word;
+        okclick();
+      }
+
+      function okclick() {
+        const input = document.getElementById("videourl").value.trim();
+        const player = document.getElementById("video");
+        const status = document.getElementById("status");
+
+        // 1. Reset Status
+        status.textContent = "Processing...";
+        status.style.color = "#fff";
+
+        if (!input) {
+          status.textContent = "Error: Please enter a URL or keyword.";
+          status.style.color = "red";
+          return;
+        }
+
+        try {
+          // 2. CHECK IF IT IS A YOUTUBE URL
+          if (input.includes("youtube.com") || input.includes("youtu.be")) {
+            
+            let videoId = null;
+            let playlistId = null;
+
+            // Regex for Video ID (Handles youtu.be, v=, embed/)
+            const vRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const vMatch = input.match(vRegExp);
+            
+            if (vMatch && vMatch[2].length === 11) {
+              videoId = vMatch[2];
+            }
+
+            // Regex for Playlist ID (Handles list=)
+            const pRegExp = /[?&]list=([^&]+)/;
+            const pMatch = input.match(pRegExp);
+            
+            if (pMatch && pMatch[1]) {
+              playlistId = pMatch[1];
+            }
+
+            // --- LOGIC FOR PLAYLIST vs VIDEO ---
+            if (playlistId) {
+              // IT'S A PLAYLIST
+              status.textContent = "Loading Playlist...";
+              player.src = `https://www.youtube.com/embed/videoseries?list=${playlistId}&autoplay=1&rel=0`;
+            } 
+            else if (videoId) {
+              // IT'S A SINGLE VIDEO
+              status.textContent = "Loading Video...";
+              player.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+            } 
+            else {
+              throw new Error("Could not find Video ID in that URL.");
+            }
+
+          } 
+          
+          // 3. CHECK IF IT IS A KEYWORD (Search)
+          else {
+            const lowerInput = input.toLowerCase();
+            let foundId = null;
+
+            // Loop through library
+            for (let key in library) {
+              if (lowerInput.includes(key)) {
+                foundId = library[key];
+                break;
+              }
+            }
+
+            if (foundId) {
+              status.textContent = `Found playlist for '${input}'`;
+              player.src = `https://www.youtube.com/embed/videoseries?list=${foundId}&autoplay=1&rel=0`;
+            } 
+            else {
+              throw new Error("Keyword not found in library. Try 'Lofi' or 'Nature'.");
+            }
+          }
+
+        } catch (error) {
+          console.error(error);
+          status.textContent = "Error: " + error.message;
+          status.style.color = "orange";
+        }
+      }
+    </script>
+  </body>
+</html>
